@@ -1,0 +1,86 @@
+services:
+  smm_ya_database:
+    image: postgres:latest
+    restart: always
+    environment:
+      POSTGRES_DB: "smm_ya_database"
+      POSTGRES_USER: "root"
+      POSTGRES_PASSWORD: "very_long_password"
+    container_name: SMM-ya-database
+    ports:
+      - "5433:5432"
+    volumes:
+      - database:/var/lib/postgresql/data
+    networks:
+      smm_ya:
+        ipv4_address: 172.31.0.4
+
+  smm_ya_frontend:
+    build:
+      dockerfile: Dockerfile
+      context: frontend
+    container_name: SMM-ya-frontend
+    ports:
+      - "4173:4173"
+    restart: always
+    environment:
+      - VITE_BACKEND_URL=/
+    networks:
+      smm_ya:
+        ipv4_address: 172.31.0.2
+
+  smm_ya_backend:
+    build:
+      dockerfile: Dockerfile
+      context: backend
+    container_name: SMM-ya-backend
+    depends_on:
+      - smm_ya_database
+    environment:
+      - POSTGRES_CONN=postgresql://root:very_long_password@smm_ya_database:5432/smm_ya_database
+      - JWT_SECRET_KEY=XXX
+    ports:
+      - "5437:5437"
+    restart: always
+    networks:
+      smm_ya:
+        ipv4_address: 172.31.0.3
+
+  smm_ya_nginx:
+    image: nginx:1.25
+    container_name: SMM-ya-nginx
+    ports:
+      - "80:80"
+    networks:
+      smm_ya:
+        ipv4_address: 172.31.0.5
+    volumes:
+      - ./nginx:/etc/nginx/conf.d
+    restart: always
+
+  smm_ya_worker:
+    build:
+      dockerfile: Dockerfile
+      context: worker
+    container_name: SMM-ya-worker
+    depends_on:
+      - smm_ya_database
+      - smm_ya_backend
+    environment:
+      - POSTGRES_CONN=postgresql://root:very_long_password@smm_ya_database:5432/smm_ya_database
+    restart: always
+    networks:
+      smm_ya:
+        ipv4_address: 172.31.0.6
+
+volumes:
+  database:
+  nginx-conf.d:
+
+networks:
+  smm_ya:
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.31.0.0/24
+          gateway: 172.31.0.1
